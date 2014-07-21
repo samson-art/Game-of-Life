@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+	<head lang="en">
+		<meta charset="UTF-8">
+		<title>Life!</title>
+        <script src="static/js/bignumber.js"></script>
+		<script src="static/js/jquery-2.1.1.min.js"></script>
+		<script src="static/js/client.js"></script>
+		<script>
+			window.onload = function() {
+			var uid = parseInt(new Date().getTime() / 1000);
+			var game = new Game('game_area');
+			};
+		</script>
+		<style type="text/css">
+			#gameCanvas {
+				border: 1px solid gray;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="game_area" align="center">
+
+		</div>
+	</body>
+</html>
