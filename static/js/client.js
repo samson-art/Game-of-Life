@@ -29,7 +29,6 @@ function GameCanvas(id){
         this.context.stroke();
     }
 }
-
 GameCanvas.prototype.fillRect = function(i,j, color, w, h){
     w = w||(_step-2);
     h = h||(_step-2);
@@ -59,7 +58,6 @@ GameCanvas.prototype.draw = function draw(gameMatrix){
         }
     }
 };
-
 // WebSocket Client
 function WSClient() {
     this.host = 'localhost';
@@ -135,7 +133,7 @@ function Game(element_id) {
     this.hashList = [];
     this.onTop = false;
     this.prepareingToGame = false;
-    this.stop = false;
+    //this.stop = false;
     this.myLiveCells = 0;
     this.enemyesLiveCells = 0;
     this.gen_array = [];
@@ -147,9 +145,7 @@ function Game(element_id) {
     this.p_array = [];
     this.gen_p_array();
     this.client = new WSClient();
-    //стандартные фигуры
-
-//форма страницы    
+//форма страницы
     this.element = document.getElementById(element_id);
     this.button_html = '<canvas id="gameCanvas">Игровое поле</canvas>' + 
         '<form>' +
@@ -185,9 +181,7 @@ function Game(element_id) {
                 this.gen_matrix();
                 this.canvas.clear();
                 this.stop = true;
-                setTimeout(function() {
-                    this.stop = false;
-                }.bind(this), 1000);
+                clearInterval(this.mainTimer);
                 this.std_conf_list = m['data'];
                 for (i = 0; i < this.std_conf_list.length; i++){
                     this.create_btn(this.std_conf_list[i], this.std_conf_div, function(event) {
@@ -202,12 +196,9 @@ function Game(element_id) {
                     $('#Stop').removeAttr('disabled');
                 }.bind(this));
                 this.create_btn('Stop', this.control_div, function () {
-                    this.stop = true;
                     $('#Stop').attr('disabled', true);
                     $('#Play').removeAttr('disabled');
-                    setTimeout(function(){
-                        this.stop = false;
-                    }.bind(this), 1000);
+                    clearInterval(this.mainTimer);
                 }.bind(this));
                 $('#Play').attr('disabled', true);
                 $('#Stop').attr('disabled', true);
@@ -228,26 +219,23 @@ function Game(element_id) {
                 $('#Stop').attr('disabled', true);
                 $('#btn-previous').attr('disabled', true);
                 $('#btn-send').text('Send map').hide().removeAttr('disabled');
-                this.stop=true;
                 this.test = false;
-                setTimeout(function(){
-                    this.stop = false;
-                    this.gen_matrix();
-                    this.canvas.clear();
-                    $('#conf-list').hide();
-                    var data = m['data'];
-                    console.log(data.top);
-                    if (data.top) {
-                        this.onTop = true;
-                        this.canvas.fillRect(_numberOfCells / 2, 0, 'rgba(0,0,255,0.45)', _width, _height / 2);
-                    } else {
-                        this.onTop = false;
-                        this.canvas.fillRect(0, 0, 'rgba(255,0,0,0.45)', _width, _height / 2);
-                    }
-                    this.prepareingToGame = true;
-                    $('#btn-search').hide();
-                    $('#btn-send').show('slow');
-                }.bind(this),300);
+                clearInterval(this.mainTimer);
+                this.gen_matrix();
+                this.canvas.clear();
+                $('#conf-list').hide();
+                var data = m['data'];
+                console.log(data.top);
+                if (data.top) {
+                    this.onTop = true;
+                    this.canvas.fillRect(_numberOfCells / 2, 0, 'rgba(0,0,255,0.45)', _width, _height / 2);
+                } else {
+                    this.onTop = false;
+                    this.canvas.fillRect(0, 0, 'rgba(255,0,0,0.45)', _width, _height / 2);
+                }
+                this.prepareingToGame = true;
+                $('#btn-search').hide();
+                $('#btn-send').show('slow');
                 break;
             case 'start_game':
                 this.prepareingToGame = false;
@@ -261,14 +249,11 @@ function Game(element_id) {
                 this.beginGame();
                 break;
             case 'game_over':
-                $('#Play').removeAttr('disabled');
                 $('#btn-previous').removeAttr('disabled');
                 $('#Stop').attr('disabled', true);
-                this.stop = false;
                 this.gen_matrix();
                 this.hashList = [];
                 $('#btn-search').show('slow').text('Search game').removeAttr('disabled');
-                $('#Play').removeAttr('disabled');
                 $('#conf-list').show('slow');
                 $('#btn-send').text('Send map').hide().removeAttr('disabled');
                 break;
@@ -349,11 +334,9 @@ function Game(element_id) {
     this.btn_previous.onclick = function(event){
         event.preventDefault();
         $('#Stop').attr('disabled', true);
-        this.stop = true;
+        //this.stop = true;
         $('#Play').removeAttr('disabled');
-        setInterval(function(){
-            this.stop = false;
-        }.bind(this),300);
+        clearInterval(this.mainTimer);
         this.move_back();
     }.bind(this);
 //создание кнопки
@@ -489,28 +472,25 @@ Game.prototype.beginGame = function(){
                         }
                     }
                 }
-    var mainTimer = setInterval(function(){
+    this.mainTimer = setInterval(function(){
         this.gen_array.push(this.matrix);
         this.canvas.clear();
         this.matrix = this.genNext();
         this.canvas.draw(this.matrix);
         var str;
-        if(this.stop){
-            this.prepareingToGame = true;
-            clearInterval(mainTimer);
-        } else if (!this.test) {
+        if (!this.test) {
             if (this.myLiveCells == 0) {
-                clearInterval(mainTimer);
+                clearInterval(this.mainTimer);
                 this.prepareingToGame = true;
                 alert('Игра окончена\nВы проиграли\nУ вас не осталось живых клеток\nКоличество живых клеток соперника: ' + this.enemyesLiveCells);
                 this.client.sendMessage('finish');
             } else if (this.enemyesLiveCells == 0) {
-                clearInterval(mainTimer);
+                clearInterval(this.mainTimer);
                 this.prepareingToGame = true;
                 alert('Игра окончена\nВы выиграли\nУ вашего противника не осталось живых клеток\nКоличество живых клеток соперника: ' + this.enemyesLiveCells);
                 this.client.sendMessage('finish');
             } else if (this.compare(this.gen_array[this.gen_array.length - 1], this.matrix)) {
-                clearInterval(mainTimer);
+                clearInterval(this.mainTimer);
                 this.prepareingToGame = true;
                 if (this.myLiveCells == this.enemyesLiveCells) {
                     str = 'Ничья!';
@@ -520,7 +500,7 @@ Game.prototype.beginGame = function(){
                 alert('Игра окончена\nСтатичная конфигурация\n' + str + '\nКоличество ваших живых клеток: ' + this.myLiveCells + '\nКоличество живых клеток соперника: ' + this.enemyesLiveCells);
                 this.client.sendMessage('finish');
             } else if (!this.find_loop()) {
-                clearInterval(mainTimer);
+                clearInterval(this.mainTimer);
                 this.prepareingToGame = true;
                 if (this.myLiveCells == this.enemyesLiveCells) {
                     str = 'Ничья!';
