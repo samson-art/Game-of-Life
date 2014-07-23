@@ -9,8 +9,7 @@ _height = 640;
 _width = 640;
 _numberOfCells = 64;
 _step = _height/_numberOfCells;
-_maxLiveCells = 32;
-_speed = 150;
+_speed = 30;
 //GameCanvas
 function GameCanvas(id){
     //рисуем поле
@@ -114,6 +113,7 @@ WSClient.prototype.onClose = function(event) {
     $('#btn-search').hide().text('Search game').removeAttr('disabled');
     $('#gameCanvas').hide();
     $('#btn-send').hide();
+    $('btn-previous').hide();
     $('#conf-list').empty();
     $('#control').empty();
 };
@@ -138,6 +138,8 @@ function Game(element_id) {
     this.stop = false;
     this.myLiveCells = 0;
     this.enemyesLiveCells = 0;
+    this.gen_array = [];
+    this.test = false;
 //матрица игры
     this.matrix = [];
     this.gen_matrix();
@@ -154,11 +156,11 @@ function Game(element_id) {
         '<button id="btn-connect">Connect</button>' +
         '<button id="btn-search">Search game</button>' +
         '<button id="btn-send">Send map</button>' +
-        '<button id="btn-previous">Previous</button>' +
         '</form>' +
         '<div id="conf-list" align="center"></div>' +
         '<div id="control" align="center"></div>';
     this.element.innerHTML = this.button_html;
+    document.getElementById('control').innerHTML = '<button id="btn-previous">Previous</button>';
 //кнопочки
     this.btn_connect = document.getElementById('btn-connect');
     this.btn_search = document.getElementById('btn-search');
@@ -179,32 +181,39 @@ function Game(element_id) {
         var message = m['message'];
         switch(message){
             case 'open':
+                this.test = false;
                 this.gen_matrix();
+                this.canvas.clear();
                 this.stop = true;
+                setTimeout(function() {
+                    this.stop = false;
+                }.bind(this), 1000);
                 this.std_conf_list = m['data'];
                 for (i = 0; i < this.std_conf_list.length; i++){
                     this.create_btn(this.std_conf_list[i], this.std_conf_div, function(event) {
+                        this.prepareingToGame = true;
                         this.client.sendMessage('get_conf', event.target.id);
                     }.bind(this));
                 }
                 this.create_btn('Play', this.control_div, function () {
-                    this.test_begin();
+                    this.test = true;
+                    this.beginGame();
                     $('#Play').attr('disabled', true);
                     $('#Stop').removeAttr('disabled');
                 }.bind(this));
                 this.create_btn('Stop', this.control_div, function () {
-                    $('#Stop').attr('disabled', true);
                     this.stop = true;
+                    $('#Stop').attr('disabled', true);
                     $('#Play').removeAttr('disabled');
-                    setInterval(function(){
+                    setTimeout(function(){
                         this.stop = false;
-                    }.bind(this), 500);
+                    }.bind(this), 1000);
                 }.bind(this));
+                $('#Play').attr('disabled', true);
+                $('#Stop').attr('disabled', true);
                 $('#conf-list').show();
                 $('#control').show();
-                setTimeout(function(){
-                    this.stop = false;
-                }.bind(this), 300);
+                $('#btn-previous').show();
                 break;
             case 'close':
 
@@ -214,12 +223,18 @@ function Game(element_id) {
                 this.btn_search.innerHTML = 'We are founding game for you';
                 break;
             case 'game_found':
+                this.prepareingToGame = true;
+                $('#Play').attr('disabled', true);
+                $('#Stop').attr('disabled', true);
+                $('#btn-previous').attr('disabled', true);
+                $('#btn-send').text('Send map').hide().removeAttr('disabled');
                 this.stop=true;
+                this.test = false;
                 setTimeout(function(){
+                    this.stop = false;
                     this.gen_matrix();
                     this.canvas.clear();
                     $('#conf-list').hide();
-                    $('#control').hide();
                     var data = m['data'];
                     console.log(data.top);
                     if (data.top) {
@@ -235,43 +250,32 @@ function Game(element_id) {
                 }.bind(this),300);
                 break;
             case 'start_game':
-                this.enemyesLiveCells = 0;
-                this.myLiveCells = 0;
                 this.prepareingToGame = false;
-                $('#btn-send').text('Game begun').attr('disabled');
+                this.test = false;
                 var map = m['data'];
                 this.matrix = map.map;
-                for (var i = 0; i < _numberOfCells; i++){
-                    for(var j = 0; j < _numberOfCells; j++){
-                        if(this.matrix[i][j]==2 && !this.onTop){
-                            this.enemyesLiveCells += 1;
-                        } else if (this.matrix[i][j]==1 && this.onTop){
-                            this.enemyesLiveCells += 1;
-                        }
-                        if (this.matrix[i][j] == 2 && this.onTop){
-                            this.myLiveCells += 1;
-                        } else if (this.matrix[i][j] == 1 && !this.onTop) {
-                            this.myLiveCells += 1;
-                        }
-                    }
-                }
+                this.gen_array = [];
+                this.hashList = [];
+                this.prepareingToGame = false;
+                $('#btn-send').text('Game begun').attr('disabled');
                 this.beginGame();
                 break;
             case 'game_over':
+                $('#Play').removeAttr('disabled');
+                $('#btn-previous').removeAttr('disabled');
+                $('#Stop').attr('disabled', true);
                 this.stop = false;
-                this.myLiveCells = 0;
-                this.enemyesLiveCells = 0;
                 this.gen_matrix();
                 this.hashList = [];
                 $('#btn-search').show('slow').text('Search game').removeAttr('disabled');
                 $('#Play').removeAttr('disabled');
                 $('#conf-list').show('slow');
-                $('#control').show('slow');
                 $('#btn-send').text('Send map').hide().removeAttr('disabled');
                 break;
             case 'return-conf':
-                $('#conf-list').show('slow');
-                $('#control').show('slow');
+                this.hashList = [];
+                this.test = true;
+                this.gen_array = [];
                 var data = m['data'];
                 console.log(data);
                 this.gen_matrix();
@@ -282,37 +286,39 @@ function Game(element_id) {
                     }
                 }
                 this.canvas.draw(this.matrix);
-                $('#Stop').removeAttr('disabled');
+                $('#Play').removeAttr('disabled');
                 break;
         }
     }.bind(this);
 //обработка нажатий на игровое поле
     $('#gameCanvas').click(function(e) {  
-        if (this.prepareingToGame){
-            if (this.myLiveCells < _maxLiveCells){
-                var offset = $('#gameCanvas').offset();
-                var relativeX = (e.pageX - offset.left);
-                var relativeY = (e.pageY - offset.top);
-                var i = relativeY/_step | 0;
-                var j = relativeX/_step | 0;
-                if (this.onTop){
-                    if (i<_numberOfCells/2){
-                        this.canvas.fillRect(i,j, !this.matrix[i][j] ? 'red' : 'white');
-                        this.matrix[i][j] = !this.matrix[i][j] ? 2 : 0;
-                    } else {
-                        alert("Расставляйте клетки на своей территории");
-                    }
-                } else{
-                    if (i>=_numberOfCells/2){
-                        this.canvas.fillRect(i,j, 'blue');
-                        this.matrix[i][j] = 1;
-                    } else {
-                        alert("Расставляйте клетки на своей территории");
-                    }
+        if (this.prepareingToGame) {
+            var offset = $('#gameCanvas').offset();
+            var relativeX = (e.pageX - offset.left);
+            var relativeY = (e.pageY - offset.top);
+            var i = relativeY / _step | 0;
+            var j = relativeX / _step | 0;
+            if (this.matrix[i][j]) {
+                this.matrix[i][j] = 0;
+                this.canvas.fillRect(i, j, 'white');
+            } else if(this.test){
+                this.matrix[i][j] = 1;
+                this.canvas.fillRect(i, j, 'blue');
+            }else if (this.onTop){
+                if (i<_numberOfCells/2){
+                    this.canvas.fillRect(i,j,'red');
+                    this.matrix[i][j] = 2;
+                } else {
+                    alert("Расставляйте клетки на своей территории");
                 }
-            } else {
-                alert("Вы расставили все свои клетки");
-            } 
+            } else if (!this.onTop) {
+                if (i>=_numberOfCells/2){
+                    this.canvas.fillRect(i,j, 'blue');
+                    this.matrix[i][j] = 1;
+                } else {
+                    alert("Расставляйте клетки на своей территории");
+                }
+            }
         }
     }.bind(this));
 //обработка нажатий на кнопки
@@ -341,8 +347,14 @@ function Game(element_id) {
         this.client.sendMessage('ready', {'map': this.matrix});
     }.bind(this);
     this.btn_previous.onclick = function(event){
-       event.preventDefault();
-       this.move_back();
+        event.preventDefault();
+        $('#Stop').attr('disabled', true);
+        this.stop = true;
+        $('#Play').removeAttr('disabled');
+        setInterval(function(){
+            this.stop = false;
+        }.bind(this),300);
+        this.move_back();
     }.bind(this);
 //создание кнопки
     this.create_btn = function(id, parent, onclick){
@@ -352,24 +364,16 @@ function Game(element_id) {
         btn.onclick = onclick;
         parent.appendChild(btn);
     };
-//демонстрация
-    this.test_begin = function(){
-        var mainTimer = setInterval(function(){
-            this.canvas.clear();
-            this.matrix = this.genNext();
-            this.canvas.draw(this.matrix);
-            this.myLiveCells = 0;
-            this.enemyesLiveCells = 0;
-            this.hashList = [];
-            if(this.stop) clearInterval(mainTimer)
-        }.bind(this), _speed/3);
-        setTimeout(function() {
-            this.stop = false;
-        }.bind(this), 300);
-    };
 }
 Game.prototype.move_back = function () {
-
+    if(this.gen_array[this.gen_array.length-1]) {
+        this.matrix = this.gen_array.pop();
+        this.hashList.pop();
+        this.canvas.clear();
+        this.canvas.draw(this.matrix);
+    } else {
+        alert('Вы достигли начала жизни...');
+    }
 };
 Game.prototype.life_count = function(j, i, _numberOfCells){
     var prevX, prevY, nextX, nextY;
@@ -468,38 +472,64 @@ Game.prototype.genNext = function(){
     return nextMatrix;
 };
 Game.prototype.beginGame = function(){
+    this.prepareingToGame = false;
+    this.enemyesLiveCells = 0;
+    this.myLiveCells = 0;
+    for (var i = 0; i < _numberOfCells; i++) {
+                    for (var j = 0; j < _numberOfCells; j++) {
+                        if (this.matrix[i][j] == 2 && !this.onTop) {
+                            this.enemyesLiveCells += 1;
+                        } else if (this.matrix[i][j] == 1 && this.onTop) {
+                            this.enemyesLiveCells += 1;
+                        }
+                        if (this.matrix[i][j] == 2 && this.onTop) {
+                            this.myLiveCells += 1;
+                        } else if (this.matrix[i][j] == 1 && !this.onTop) {
+                            this.myLiveCells += 1;
+                        }
+                    }
+                }
     var mainTimer = setInterval(function(){
-        var lastGen = this.matrix;
+        this.gen_array.push(this.matrix);
         this.canvas.clear();
         this.matrix = this.genNext();
         this.canvas.draw(this.matrix);
         var str;
-        if (this.myLiveCells == 0) {
+        if(this.stop){
+            this.prepareingToGame = true;
             clearInterval(mainTimer);
-            alert('Игра окончена\nВы проиграли\nУ вас не осталось живых клеток\nКоличество живых клеток соперника: '+ this.enemyesLiveCells);
-            this.client.sendMessage('finish');
-        } else if (this.enemyesLiveCells == 0){
-            clearInterval(mainTimer);
-            alert('Игра окончена\nВы выиграли\nУ вашего противника не осталось живых клеток\nКоличество живых клеток соперника: '+ this.enemyesLiveCells);
-            this.client.sendMessage('finish');
-        } else if (this.compare(lastGen, this.matrix)) {
-            clearInterval(mainTimer);
-            if (this.myLiveCells == this.enemyesLiveCells){
-                str = 'Ничья!';
-            } else {
-                str = this.myLiveCells > this.enemyesLiveCells ? 'Вы победили ' : 'Вы проиграли ';
+        } else if (!this.test) {
+            if (this.myLiveCells == 0) {
+                clearInterval(mainTimer);
+                this.prepareingToGame = true;
+                alert('Игра окончена\nВы проиграли\nУ вас не осталось живых клеток\nКоличество живых клеток соперника: ' + this.enemyesLiveCells);
+                this.client.sendMessage('finish');
+            } else if (this.enemyesLiveCells == 0) {
+                clearInterval(mainTimer);
+                this.prepareingToGame = true;
+                alert('Игра окончена\nВы выиграли\nУ вашего противника не осталось живых клеток\nКоличество живых клеток соперника: ' + this.enemyesLiveCells);
+                this.client.sendMessage('finish');
+            } else if (this.compare(this.gen_array[this.gen_array.length - 1], this.matrix)) {
+                clearInterval(mainTimer);
+                this.prepareingToGame = true;
+                if (this.myLiveCells == this.enemyesLiveCells) {
+                    str = 'Ничья!';
+                } else {
+                    str = this.myLiveCells > this.enemyesLiveCells ? 'Вы победили ' : 'Вы проиграли ';
+                }
+                alert('Игра окончена\nСтатичная конфигурация\n' + str + '\nКоличество ваших живых клеток: ' + this.myLiveCells + '\nКоличество живых клеток соперника: ' + this.enemyesLiveCells);
+                this.client.sendMessage('finish');
+            } else if (!this.find_loop()) {
+                clearInterval(mainTimer);
+                this.prepareingToGame = true;
+                if (this.myLiveCells == this.enemyesLiveCells) {
+                    str = 'Ничья!';
+                } else {
+                    str = this.myLiveCells > this.enemyesLiveCells ? 'Вы победили ' : 'Вы проиграли ';
+                }
+                alert('Игра зашла в цикл\n' + str + '\nКоличество ваших живых клеток: ' + this.myLiveCells + '\nКоличество живых клеток соперника: ' + this.enemyesLiveCells);
+                this.client.sendMessage('finish');
             }
-            alert('Игра окончена\nСтатичная конфигурация\n'+str+'\nКоличество ваших живых клеток: ' + this.myLiveCells + '\nКоличество живых клеток соперника: '+ this.enemyesLiveCells);
-            this.client.sendMessage('finish');
-        } else if(!this.find_loop()){
-            clearInterval(mainTimer);
-            if (this.myLiveCells == this.enemyesLiveCells){
-                str = 'Ничья!';
-            } else {
-                str = this.myLiveCells > this.enemyesLiveCells ? 'Вы победили ' : 'Вы проиграли ';
-            }
-            alert('Игра зашла в цикл\n'+str+'\nКоличество ваших живых клеток: ' + this.myLiveCells + '\nКоличество живых клеток соперника: '+ this.enemyesLiveCells);
-            this.client.sendMessage('finish');
         }
     }.bind(this), _speed);
 };
