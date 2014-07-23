@@ -6,6 +6,7 @@
 import os
 import uuid
 import json
+import numpy as np
 from tornado import web
 from tornado import httpserver
 from tornado import ioloop
@@ -60,7 +61,9 @@ class WSHandler(websocket.WebSocketHandler):
     def open(self):
         self.uid = uuid.uuid4()
         self.connections[self.uid] = self
-        self.send_response('open', None)
+        directory = 'static/js/stdConf'
+        files = os.listdir(directory)
+        self.send_response('open', 'List of files sent', data=files)
         print 'New player with uid={}'.format(self.uid)
         print 'Players list: {}'.format(self.connections.values())
  
@@ -122,11 +125,15 @@ class WSHandler(websocket.WebSocketHandler):
                     self.send_response('map_is_empty', 'map_is_empty', error=True)
             elif command == 'finish':
                 self.in_game = False
-                self.opponent.in_game = False
+                #self.opponent.in_game = False
                 self.send_response('game_over', 'Data cleared')
-                self.opponent.send_response('game_over', 'Data cleared')
-                self.opponent.map = list()
+                #self.opponent.send_response('game_over', 'Data cleared')
+                #self.opponent.map = list()
                 self.map = list()
+            elif command == 'get_conf':
+                data = jm.get('data')
+                conf = np.loadtxt('static/js/stdConf/'+data, dtype='int').tolist()
+                self.send_response('return-conf', conf, data=conf)
             else:
                 self.send_response('unknown_command', 'Unknown command', error=True)
         else:
@@ -137,7 +144,6 @@ class WSHandler(websocket.WebSocketHandler):
                                        'text': text,
                                        'error': error,
                                        'data': data}))
-
 
 
 if __name__ == '__main__':

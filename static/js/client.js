@@ -9,7 +9,7 @@ _height = 640;
 _width = 640;
 _numberOfCells = 64;
 _step = _height/_numberOfCells;
-_maxLiveCells = 15;
+_maxLiveCells = 32;
 _speed = 150;
 //GameCanvas
 function GameCanvas(id){
@@ -98,6 +98,7 @@ WSClient.prototype.onOpen = function() {
     console.log('Соединение открыто');
     this.connection = true;
     $('#btn-search').show('slow').text('Search game').removeAttr('disabled');
+    $('#gameCanvas').show('slow');
 };
  
 WSClient.prototype.onClose = function(event) {
@@ -109,9 +110,12 @@ WSClient.prototype.onClose = function(event) {
     console.log('Код: ' + event.code + ' причина: ' + event.reason);
     this.ws = null;
     this.connection = false;
+    $('#btn-connect').text('Connect');
     $('#btn-search').hide().text('Search game').removeAttr('disabled');
     $('#gameCanvas').hide();
     $('#btn-send').hide();
+    $('#conf-list').empty();
+    $('#control').empty();
 };
  
 WSClient.prototype.onError = function(error) {
@@ -131,6 +135,7 @@ function Game(element_id) {
     this.hashList = [];
     this.onTop = false;
     this.prepareingToGame = false;
+    this.stop = false;
     this.myLiveCells = 0;
     this.enemyesLiveCells = 0;
 //матрица игры
@@ -140,6 +145,8 @@ function Game(element_id) {
     this.p_array = [];
     this.gen_p_array();
     this.client = new WSClient();
+    //стандартные фигуры
+
 //форма страницы    
     this.element = document.getElementById(element_id);
     this.button_html = '<canvas id="gameCanvas">Игровое поле</canvas>' + 
@@ -147,16 +154,23 @@ function Game(element_id) {
         '<button id="btn-connect">Connect</button>' +
         '<button id="btn-search">Search game</button>' +
         '<button id="btn-send">Send map</button>' +
-        '</form>';
+        '<button id="btn-previous">Previous</button>' +
+        '</form>' +
+        '<div id="conf-list" align="center"></div>' +
+        '<div id="control" align="center"></div>';
     this.element.innerHTML = this.button_html;
 //кнопочки
     this.btn_connect = document.getElementById('btn-connect');
     this.btn_search = document.getElementById('btn-search');
     this.btn_send = document.getElementById('btn-send');
+    this.std_conf_div = document.getElementById('conf-list');
+    this.btn_previous = document.getElementById('btn-previous');
+    this.control_div = document.getElementById('control');
 //
     $('#gameCanvas').hide();
     $('#btn-search').hide();
     $('#btn-send').hide();
+    $('#btn-previous').hide();
     this.canvas = new GameCanvas('gameCanvas');
 //обработка ответов серевера
     this.client.onMessage = function(event){
@@ -165,7 +179,32 @@ function Game(element_id) {
         var message = m['message'];
         switch(message){
             case 'open':
-
+                this.gen_matrix();
+                this.stop = true;
+                this.std_conf_list = m['data'];
+                for (i = 0; i < this.std_conf_list.length; i++){
+                    this.create_btn(this.std_conf_list[i], this.std_conf_div, function(event) {
+                        this.client.sendMessage('get_conf', event.target.id);
+                    }.bind(this));
+                }
+                this.create_btn('Play', this.control_div, function () {
+                    this.test_begin();
+                    $('#Play').attr('disabled', true);
+                    $('#Stop').removeAttr('disabled');
+                }.bind(this));
+                this.create_btn('Stop', this.control_div, function () {
+                    $('#Stop').attr('disabled', true);
+                    this.stop = true;
+                    $('#Play').removeAttr('disabled');
+                    setInterval(function(){
+                        this.stop = false;
+                    }.bind(this), 500);
+                }.bind(this));
+                $('#conf-list').show();
+                $('#control').show();
+                setTimeout(function(){
+                    this.stop = false;
+                }.bind(this), 300);
                 break;
             case 'close':
 
@@ -175,25 +214,31 @@ function Game(element_id) {
                 this.btn_search.innerHTML = 'We are founding game for you';
                 break;
             case 'game_found':
-                this.gen_matrix();
-                this.canvas.clear();
-                $('#gameCanvas').show('slow');
-                var data = m['data'];
-                console.log(data.top);
-                if(data.top) {
-                    this.onTop = true;
-                    this.canvas.fillRect(_numberOfCells/2, 0, 'rgba(0,0,255,0.45)', _width, _height/2);
-                } else {
-                    this.onTop = false;
-                    this.canvas.fillRect(0, 0, 'rgba(255,0,0,0.45)', _width, _height/2);
-                }
-                this.prepareingToGame = true;
-                $('#btn-search').hide();
-                $('#btn-send').show('slow');
+                this.stop=true;
+                setTimeout(function(){
+                    this.gen_matrix();
+                    this.canvas.clear();
+                    $('#conf-list').hide();
+                    $('#control').hide();
+                    var data = m['data'];
+                    console.log(data.top);
+                    if (data.top) {
+                        this.onTop = true;
+                        this.canvas.fillRect(_numberOfCells / 2, 0, 'rgba(0,0,255,0.45)', _width, _height / 2);
+                    } else {
+                        this.onTop = false;
+                        this.canvas.fillRect(0, 0, 'rgba(255,0,0,0.45)', _width, _height / 2);
+                    }
+                    this.prepareingToGame = true;
+                    $('#btn-search').hide();
+                    $('#btn-send').show('slow');
+                }.bind(this),300);
                 break;
             case 'start_game':
+                this.enemyesLiveCells = 0;
+                this.myLiveCells = 0;
                 this.prepareingToGame = false;
-                $('#btn-send').text('Game begin').attr('disabled');
+                $('#btn-send').text('Game begun').attr('disabled');
                 var map = m['data'];
                 this.matrix = map.map;
                 for (var i = 0; i < _numberOfCells; i++){
@@ -203,19 +248,42 @@ function Game(element_id) {
                         } else if (this.matrix[i][j]==1 && this.onTop){
                             this.enemyesLiveCells += 1;
                         }
+                        if (this.matrix[i][j] == 2 && this.onTop){
+                            this.myLiveCells += 1;
+                        } else if (this.matrix[i][j] == 1 && !this.onTop) {
+                            this.myLiveCells += 1;
+                        }
                     }
                 }
                 this.beginGame();
                 break;
             case 'game_over':
+                this.stop = false;
                 this.myLiveCells = 0;
                 this.enemyesLiveCells = 0;
                 this.gen_matrix();
                 this.hashList = [];
                 $('#btn-search').show('slow').text('Search game').removeAttr('disabled');
+                $('#Play').removeAttr('disabled');
+                $('#conf-list').show('slow');
+                $('#control').show('slow');
                 $('#btn-send').text('Send map').hide().removeAttr('disabled');
                 break;
-
+            case 'return-conf':
+                $('#conf-list').show('slow');
+                $('#control').show('slow');
+                var data = m['data'];
+                console.log(data);
+                this.gen_matrix();
+                this.canvas.clear();
+                for(var l = 0, i = (this.matrix.length/2-data.length/2)| 0; i < ((this.matrix.length/2-data.length/2)| 0)+ data.length; i++, l++) {
+                    for(var k = 0, j = (this.matrix[i].length/2-data[l].length/2) | 0; j < ((this.matrix[i].length/2-data[l].length/2) | 0) + data[l].length; k++, j++) {
+                        this.matrix[i][j] += data[l][k];
+                    }
+                }
+                this.canvas.draw(this.matrix);
+                $('#Stop').removeAttr('disabled');
+                break;
         }
     }.bind(this);
 //обработка нажатий на игровое поле
@@ -225,13 +293,12 @@ function Game(element_id) {
                 var offset = $('#gameCanvas').offset();
                 var relativeX = (e.pageX - offset.left);
                 var relativeY = (e.pageY - offset.top);
-                i = relativeY/_step | 0;
-                j = relativeX/_step | 0;
+                var i = relativeY/_step | 0;
+                var j = relativeX/_step | 0;
                 if (this.onTop){
                     if (i<_numberOfCells/2){
-                        this.canvas.fillRect(i,j, 'red');
-                        this.matrix[i][j] = 2;
-                        this.myLiveCells+=1;
+                        this.canvas.fillRect(i,j, !this.matrix[i][j] ? 'red' : 'white');
+                        this.matrix[i][j] = !this.matrix[i][j] ? 2 : 0;
                     } else {
                         alert("Расставляйте клетки на своей территории");
                     }
@@ -239,7 +306,6 @@ function Game(element_id) {
                     if (i>=_numberOfCells/2){
                         this.canvas.fillRect(i,j, 'blue');
                         this.matrix[i][j] = 1;
-                        this.myLiveCells+=1;
                     } else {
                         alert("Расставляйте клетки на своей территории");
                     }
@@ -274,8 +340,37 @@ function Game(element_id) {
         event.preventDefault();
         this.client.sendMessage('ready', {'map': this.matrix});
     }.bind(this);
-};
+    this.btn_previous.onclick = function(event){
+       event.preventDefault();
+       this.move_back();
+    }.bind(this);
+//создание кнопки
+    this.create_btn = function(id, parent, onclick){
+        var btn = document.createElement('button');
+        btn.id = id;
+        btn.innerHTML = id;
+        btn.onclick = onclick;
+        parent.appendChild(btn);
+    };
+//демонстрация
+    this.test_begin = function(){
+        var mainTimer = setInterval(function(){
+            this.canvas.clear();
+            this.matrix = this.genNext();
+            this.canvas.draw(this.matrix);
+            this.myLiveCells = 0;
+            this.enemyesLiveCells = 0;
+            this.hashList = [];
+            if(this.stop) clearInterval(mainTimer)
+        }.bind(this), _speed/3);
+        setTimeout(function() {
+            this.stop = false;
+        }.bind(this), 300);
+    };
+}
+Game.prototype.move_back = function () {
 
+};
 Game.prototype.life_count = function(j, i, _numberOfCells){
     var prevX, prevY, nextX, nextY;
     if (i-1 >= 0){
