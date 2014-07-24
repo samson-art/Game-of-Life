@@ -60,7 +60,7 @@ GameCanvas.prototype.draw = function draw(gameMatrix){
 };
 // WebSocket Client
 function WSClient() {
-    this.host = 'localhost';
+    this.host = 'bmzh.org';
     this.port = 8888;
     this.uri = '/ws';
     this.ws = null;

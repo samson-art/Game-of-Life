@@ -153,5 +153,5 @@ if __name__ == '__main__':
         (r'/static/(.*)', web.StaticFileHandler, {'path': STATIC_ROOT}),
     ])
     server = httpserver.HTTPServer(app)
-    server.listen(8888)
+    server.listen(8888, address='0.0.0.0')
     ioloop.IOLoop.instance().start()
