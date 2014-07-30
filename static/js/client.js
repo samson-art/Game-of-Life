@@ -60,7 +60,7 @@ GameCanvas.prototype.draw = function draw(gameMatrix){
 };
 // WebSocket Client
 function WSClient() {
-    this.host = 'bmzh.org';
+    this.host = 'localhost';
     this.port = 8888;
     this.uri = '/ws';
     this.ws = null;
@@ -147,14 +147,14 @@ function Game(element_id) {
     this.client = new WSClient();
 //форма страницы
     this.element = document.getElementById(element_id);
-    this.button_html = '<canvas id="gameCanvas">Игровое поле</canvas>' + 
-        '<form>' +
+    this.button_html = '<div class="canvas-div"><canvas id="gameCanvas">Игровое поле</canvas></div>' +
+        '<form class="btn-div">' +
         '<button id="btn-connect">Connect</button>' +
         '<button id="btn-search">Search game</button>' +
         '<button id="btn-send">Send map</button>' +
         '</form>' +
-        '<div id="conf-list" align="center"></div>' +
-        '<div id="control" align="center"></div>';
+        '<div class="btn-div" id="conf-list" align="center"></div>' +
+        '<div class="btn-div" id="control" align="center"></div>';
     this.element.innerHTML = this.button_html;
     document.getElementById('control').innerHTML = '<button id="btn-previous">Previous</button>';
 //кнопочки
@@ -497,7 +497,7 @@ Game.prototype.beginGame = function(){
                 } else {
                     str = this.myLiveCells > this.enemyesLiveCells ? 'Вы победили ' : 'Вы проиграли ';
                 }
-                alert('Игра окончена\nСтатичная конфигурация\n' + str + '\nКоличество ваших живых клеток: ' + this.myLiveCells + '\nКоличество живых клеток соперника: ' + this.enemyesLiveCells);
+                alert('Игра окончена\C конфигурация\n' + str + '\nКоличество ваших живых клеток: ' + this.myLiveCells + '\nКоличество живых клеток соперника: ' + this.enemyesLiveCells);
                 this.client.sendMessage('finish');
             } else if (!this.find_loop()) {
                 clearInterval(this.mainTimer);
